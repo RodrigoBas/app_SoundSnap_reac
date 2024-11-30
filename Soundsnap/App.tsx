@@ -6,9 +6,9 @@ import styles from './src/Styles/styles.js';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { get_rand_album, search_album } from './acess';
 import Album from './src/Models/Album.js';
-import DetalhesAlbum from './src/Componentes/Adaptadores/DetalhesAlbum'; 
+import DetalhesAlbum from './src/Componentes/Adaptadores/DetalhesAlbum';
 import LoginCadastro from './src/Componentes/Adaptadores/LoginCadastro/LoginCadastro';
-import HeaderWithSearch from './src/Componentes/HeaderWithSearch/HeaderWithSearch'; 
+import HeaderWithSearch from './src/Componentes/HeaderWithSearch/HeaderWithSearch';
 import { UserProvider, useUser } from './src/Context/UserContext';
 import axios from 'axios';
 import Icon from 'react-native-vector-icons/FontAwesome';
@@ -20,7 +20,6 @@ type RootStackParamList = {
   loginCadastro: undefined;
 };
 
-// Atualizando o tipo User para incluir likes
 type User = {
   usuario: string;
   nome: string;
@@ -36,9 +35,21 @@ export default function App() {
     <UserProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="index">
-          <Stack.Screen name="index" component={Index} />
-          <Stack.Screen name="detalhesAlbum" component={DetalhesAlbum} />
-          <Stack.Screen name="loginCadastro" component={LoginCadastro} />
+          <Stack.Screen 
+            name="index" 
+            component={Index}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="detalhesAlbum" 
+            component={DetalhesAlbum}
+            options={{ headerShown: false }}
+          />
+          <Stack.Screen 
+            name="loginCadastro" 
+            component={LoginCadastro}
+            options={{ headerShown: false }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     </UserProvider>
@@ -62,6 +73,7 @@ function Index() {
         const album = await get_rand_album();
         if (album && album.albums && album.albums.items && album.albums.items.length > 0) {
           const albumItem = album.albums.items[0];
+          console.log('Carregando álbum ID:', albumItem.id);
           lista.push({
             id: albumItem.id,
             nomeAlbum: albumItem.name,
@@ -93,14 +105,17 @@ function Index() {
     try {
       const response = await search_album(searchQuery);
       if (response && response.albums && response.albums.items.length > 0) {
-        const albums = response.albums.items.map((albumItem: any) => ({
-          id: albumItem.id,
-          nomeAlbum: albumItem.name,
-          nomeArtista: albumItem.artists[0].name,
-          foto: albumItem.images[0]?.url || '',
-          lancamento: new Date(albumItem.release_date).getFullYear(),
-          musicas: albumItem.total_tracks,
-        }));
+        const albums = response.albums.items.map((albumItem: any) => {
+          console.log('Carregando álbum pesquisado ID:', albumItem.id);
+          return {
+            id: albumItem.id,
+            nomeAlbum: albumItem.name,
+            nomeArtista: albumItem.artists[0].name,
+            foto: albumItem.images[0]?.url || '',
+            lancamento: new Date(albumItem.release_date).getFullYear(),
+            musicas: albumItem.total_tracks,
+          };
+        });
         setLista(albums);
       } else {
         Alert.alert('Resultado', 'Nenhum álbum encontrado.');
@@ -122,51 +137,41 @@ function Index() {
   }, [isSearching]);
 
   // Função para favoritar um álbum
-  // Função para favoritar um álbum
-// Função para favoritar um álbum
-// Função para favoritar um álbum
-const handleFavorite = async (album: Album) => {
-  if (!user) {
-    // Se o usuário não estiver logado, redirecionar para a tela de login/cadastro
-    navigation.navigate('loginCadastro');
-    return;
-  }
-
-  try {
-    // Fazendo a requisição PUT para adicionar o like
-    const userId = user.usuario; // Pegando o identificador do usuário
-    const albumId = album.id; // Pegando o identificador do álbum a ser favoritado
-
-    const response = await axios.put(
-      `https://spotifyapi-hct0.onrender.com/addlike/${userId}/${albumId}`
-    );
-
-    if (response.status === 200) {
-      Alert.alert('Favorito', `Álbum "${album.nomeAlbum}" foi adicionado aos seus favoritos!`);
-
-      // Atualizar a lista de favoritos no contexto do usuário
-      const updatedLikes = [...(user.likes ?? []), String(albumId)]; // Assegurando que o albumId seja uma string
-
-      // Criar um novo objeto usuário com os dados corretos e atualizados
-      const updatedUser: User = {
-        ...user,
-        likes: updatedLikes, // Atualizando a lista de likes como array de strings
-      };
-
-      // Atualizando o estado do usuário e salvando no AsyncStorage
-      setUser(updatedUser);
-      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
-    } else {
-      Alert.alert('Erro ao favoritar', 'Não foi possível favoritar o álbum. Tente novamente mais tarde.');
+  const handleFavorite = async (album: Album) => {
+    if (!user) {
+      navigation.navigate('loginCadastro');
+      return;
     }
-  } catch (error) {
-    console.error('Erro ao favoritar álbum:', error);
-    Alert.alert('Erro', 'Não foi possível favoritar o álbum. Tente novamente mais tarde.');
-  }
-};
 
+    try {
+      console.log('Tentando favoritar o álbum ID:', album.id);
+      // Faz uma solicitação PUT para adicionar o álbum como favorito na API
+      const response = await axios.put(`https://spotifyapi-hct0.onrender.com/addlike/${user.usuario}/${album.id}`);
+      if (response.status === 200) {
+        Alert.alert('Favorito', `Álbum "${album.nomeAlbum}" foi adicionado aos seus favoritos!`);
+        console.log('Favoritando álbum ID:', album.id);
 
+        // Atualiza o estado do usuário com o novo favorito
+        const updatedUser = {
+          ...user,
+          likes: user.likes ? [...user.likes, album.id.toString()] : [album.id.toString()],
+        };
 
+        setUser(updatedUser);
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      } else {
+        console.error('Erro ao favoritar, status:', response.status);
+        Alert.alert('Erro ao favoritar', 'Não foi possível favoritar o álbum. Tente novamente mais tarde.');
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error('Erro ao favoritar álbum - AxiosError:', error.response?.status, error.message);
+      } else {
+        console.error('Erro ao favoritar álbum:', error);
+      }
+      Alert.alert('Erro', 'Não foi possível favoritar o álbum. Tente novamente mais tarde.');
+    }
+  };
 
   // Renderização de um álbum (memoizado)
   const AlbumItem = memo(({ item }: { item: Album }) => {
